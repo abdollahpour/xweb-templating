@@ -42,39 +42,35 @@ public class TemplatingModule extends Module {
             final Map<String, FileItem> files) throws IOException {
 
         final XWebUser user = authentication.getUser(request);
-        if(user != null) {
-            final String role = user.getRole();
+        final String role = (user == null ? "." : user.getRole());
 
-            if (param.hasValueFor("path")) {
-                final String path = param.getString("path");
-                final File file = new File(context.getRealPath(path));
-                if (file.exists()) {
-                    final File tempDir = new File(resource.getTempDir(), "templating" + File.separator + role);
-                    final File temp = new File(tempDir, file.getName());
-
-                    // rebuild temp file
-                    if (!temp.exists() || temp.lastModified() < file.lastModified()) {
-                        if (!tempDir.exists() && !tempDir.mkdirs()) {
-                            throw new IOException("Can not create templating temp dir: " + tempDir);
-                        }
-
-                        // TODO: limit size
-                        final String html = removeByRole(file, role);
-
-                        final Writer writer = new PrintWriter(temp, "UTF-8");
-                        writer.write(html);
-                        writer.flush();
-                        writer.close();
-                    }
-
-                    resource.writeFile(request, response, temp);
-                }
-            }
-        }
-        else {
+        if (param.hasValueFor("path")) {
             final String path = param.getString("path");
             final File file = new File(context.getRealPath(path));
-            resource.writeFile(request, response, file);
+
+            if (file.exists()) {
+                final File tempDir = new File(
+                        resource.getTempDir(),
+                        "templating" + File.separator + (user == null ? "no_role" : role));
+                final File temp = new File(tempDir, file.getName());
+
+                // rebuild temp file
+                if (!temp.exists() || temp.lastModified() < file.lastModified()) {
+                    if (!tempDir.exists() && !tempDir.mkdirs()) {
+                        throw new IOException("Can not create templating temp dir: " + tempDir);
+                    }
+
+                    // TODO: limit size
+                    final String html = removeByRole(file, role);
+
+                    final Writer writer = new PrintWriter(temp, "UTF-8");
+                    writer.write(html);
+                    writer.flush();
+                    writer.close();
+                }
+
+                resource.writeFile(request, response, temp);
+            }
         }
     }
 
