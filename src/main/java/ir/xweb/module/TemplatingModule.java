@@ -6,6 +6,8 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.servlet.ServletContext;
 import javax.servlet.http.HttpServletRequest;
@@ -14,6 +16,8 @@ import java.io.*;
 import java.util.Map;
 
 public class TemplatingModule extends Module {
+
+    private static final Logger logger = LoggerFactory.getLogger("TemplatingModule");
 
     private AuthenticationModule authentication;
 
@@ -41,35 +45,42 @@ public class TemplatingModule extends Module {
             final ModuleParam param,
             final Map<String, FileItem> files) throws IOException {
 
-        final XWebUser user = authentication.getUser(request);
+        final XWebUser user = this.authentication.getUser(request);
         final String role = (user == null ? "." : user.getRole());
 
         if (param.hasValueFor("path")) {
             final String path = param.getString("path");
             final File file = new File(context.getRealPath(path));
 
-            if (file.exists()) {
-                final File tempDir = new File(
-                        resource.getTempDir(),
-                        "templating" + File.separator + (user == null ? "no_role" : role));
-                final File temp = new File(tempDir, file.getName());
+            if(role != null) {
+                if (file.exists()) {
+                    final File tempDir = new File(
+                            resource.getTempDir(),
+                            "templating" + File.separator + (user == null ? "no_role" : role));
+                    final File temp = new File(tempDir, file.getName());
 
-                // rebuild temp file
-                if (!temp.exists() || temp.lastModified() < file.lastModified()) {
-                    if (!tempDir.exists() && !tempDir.mkdirs()) {
-                        throw new IOException("Can not create templating temp dir: " + tempDir);
+                    // rebuild temp file
+                    if (!temp.exists() || temp.lastModified() < file.lastModified()) {
+                        if (!tempDir.exists() && !tempDir.mkdirs()) {
+                            throw new IOException("Can not create templating temp dir: " + tempDir);
+                        }
+
+                        // TODO: limit size
+                        final String html = removeByRole(file, role);
+
+                        final Writer writer = new PrintWriter(temp, "UTF-8");
+                        writer.write(html);
+                        writer.flush();
+                        writer.close();
                     }
 
-                    // TODO: limit size
-                    final String html = removeByRole(file, role);
-
-                    final Writer writer = new PrintWriter(temp, "UTF-8");
-                    writer.write(html);
-                    writer.flush();
-                    writer.close();
+                    resource.writeFile(request, response, temp);
                 }
+            }
+            else {
+                logger.warn("Role did not find for: " + user);
 
-                resource.writeFile(request, response, temp);
+                this.resource.writeFile(request, response, file);
             }
         }
     }
